@@ -25,14 +25,23 @@ def handle_lock(msg):
     locks = msg.get_args_list()[1]
     maxprof = "performance"
     if "ActiveProfileHolds" in locks.keys():
+        # No remaining hooks, revert to old profile.
         if len(locks["ActiveProfileHolds"]) == 0:
             locked = False
             os.system(f"powerprofilesctl set {oldprof}")
             return
+        # After some testing, I found that power-saver locks always win
+        # over performance locks, regardless of order or concurrency.
         for lk in locks["ActiveProfileHolds"]:
             if lk["Profile"] == "power-saver":
                 maxprof = "power-saver"
         locked = True
+
+        # Doing this lets the profile switch run through our handler,
+        # in the event that a hook prevents the driver from working
+        # (like in handle_change below)
+        # Unfortunately this invalidates the fallback profile, so we
+        # need to remember it ourselves.
         os.system(f"powerprofilesctl set {maxprof}")
 
 def handle_change(msg):
