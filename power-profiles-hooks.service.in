@@ -1,0 +1,12 @@
+[Unit]
+Description=Power Profiles custom hooks
+Requires=power-profiles-daemon.service dbus.socket
+After=power-profiles-daemon.service dbus.socket
+
+[Service]
+Type=simple
+ExecStart=$PREFIX/bin/power-profiles-hooksd
+Restart=on-failure
+
+[Install]
+WantedBy=graphical.target

@@ -1,0 +1,93 @@
+#!/usr/bin/env python3
+
+import dbus
+import os
+
+from gi.repository      import GLib
+from dbus.mainloop.glib import DBusGMainLoop
+
+SENDER = "net.hadess.PowerProfiles"
+OBJECT = "/net/hadess/PowerProfiles"
+IFACE = "org.freedesktop.DBus.Properties"
+
+PREFIXES = ['/etc','/usr/local/etc']
+
+iface: dbus.Interface
+bus: dbus.Bus
+
+debounce = False
+locked = False
+
+oldprof = ""
+
+def handle_lock(msg):
+    global locked
+    locks = msg.get_args_list()[1]
+    maxprof = "performance"
+    if "ActiveProfileHolds" in locks.keys():
+        if len(locks["ActiveProfileHolds"]) == 0:
+            locked = False
+            os.system(f"powerprofilesctl set {oldprof}")
+            return
+        for lk in locks["ActiveProfileHolds"]:
+            if lk["Profile"] == "power-saver":
+                maxprof = "power-saver"
+        locked = True
+        os.system(f"powerprofilesctl set {maxprof}")
+
+def handle_change(msg):
+    global debounce
+    global oldprof
+
+    if debounce:
+        debounce = False
+        return
+    newprof = msg.get_args_list()[2]
+    for pr in PREFIXES:
+        if os.path.isdir(f"{pr}/power-profiles.d/{newprof}"):
+            for hk in os.listdir(f"{pr}/power-profiles.d/{newprof}"):
+                os.system(f"{pr}/power-profiles.d/{newprof}/{hk}")
+    # Resend the message -- certain ops such as disabling/enabling a CPU
+    # can prevent the default driver from working properly, so we need
+    # to ensure the profile switch both before and after our hook.
+    debounce = True
+    os.system(f"powerprofilesctl set {newprof}")
+    if not locked:
+        oldprof = newprof
+
+
+def callback(bus, msg):
+    if msg.get_interface() == IFACE and msg.get_member() == "Set":
+        handle_change(msg)
+    elif msg.get_interface() == IFACE and msg.get_member() == "PropertiesChanged":
+        handle_lock(msg)
+
+if __name__ == '__main__':
+    DBusGMainLoop(set_as_default=True)
+    bus = dbus.SystemBus()
+
+    dbus_obj = dbus.Interface(
+            bus.get_object('org.freedesktop.DBus', '/org/freedesktop/DBus'),
+            'org.freedesktop.DBus.Monitoring')
+
+
+    obj = bus.get_object(SENDER, OBJECT)
+    iface = dbus.Interface(obj, IFACE)
+
+    oldprof = iface.Get(SENDER, "ActiveProfile")
+
+    print(f"Set profile at launch is '{oldprof}'")
+
+    # Apply hooks for existing power profile
+    for pr in PREFIXES:
+        if os.path.isdir(f"{pr}/power-profiles.d/{oldprof}"):
+            for hk in os.listdir(f"{pr}/power-profiles.d/{oldprof}"):
+                os.system(f"{pr}/power-profiles.d/{oldprof}/{hk}")
+
+    # At this point we are no longer allowed to send D-Bus messages directly.
+    dbus_obj.BecomeMonitor([f"path='{OBJECT}'"],
+                           dbus.UInt32(0))
+
+    bus.add_message_filter(callback)
+    mainloop = GLib.MainLoop()
+    mainloop.run()
