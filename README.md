@@ -4,6 +4,12 @@ I developed this quick script to help save power by shutting down most P-cores o
 
 Support for CPU hotplugging was dropped due to issues with profile locks. Plan your hooks accordingly.
 
+## Install
+
+On Arch Linux, install the [`power-profiles-hooks-git`](https://aur.archlinux.org/packages/power-profiles-hooks-git) package from AUR.
+
+Otherwise, run `make install` after cloning this repository.
+
 ## Hooks
 
 This script scans for hooks in the following directories:
