@@ -2,7 +2,7 @@
 
 I developed this quick script to help save power by shutting down most P-cores on my laptop, as well as disabling [bees](https://github.com/Zygo/bees) in powersave and performance modes.
 
-This script handles cases where CPUs are disabled, leading to the default `power-profiles-daemon` driver failing to apply, by relaunching it. **HOWEVER**, this means that any hook **MUST** be written in such a way that **ALL** CPU cores are online either **before** or **after** the hook is run.
+Support for CPU hotplugging was dropped due to issues with profile locks. Plan your hooks accordingly.
 
 ## Hooks
 

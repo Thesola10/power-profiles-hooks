@@ -18,54 +18,13 @@ PREFIXES = ['/etc','/usr/local/etc']
 iface: dbus.Interface
 bus: dbus.Bus
 
-debounce = False
-locked = False
-
-oldprof = ""
-
-def handle_lock(msg):
-    global locked
-    locks = msg.get_args_list()[1]
-    maxprof = "performance"
-    if "ActiveProfileHolds" in locks.keys():
-        # No remaining hooks, revert to old profile.
-        if len(locks["ActiveProfileHolds"]) == 0:
-            locked = False
-            os.system(f"powerprofilesctl set {oldprof}")
-            return
-        # After some testing, I found that power-saver locks always win
-        # over performance locks, regardless of order or concurrency.
-        for lk in locks["ActiveProfileHolds"]:
-            if lk["Profile"] == "power-saver":
-                maxprof = "power-saver"
-        locked = True
-
-        # Doing this lets the profile switch run through our handler,
-        # in the event that a hook prevents the driver from working
-        # (like in handle_change below)
-        # Unfortunately this invalidates the fallback profile, so we
-        # need to remember it ourselves.
-        os.system(f"powerprofilesctl set {maxprof}")
 
 def handle_change(msg):
-    global debounce
-    global oldprof
-
-    if debounce:
-        debounce = False
-        return
     newprof = msg.get_args_list()[2]
     for pr in PREFIXES:
         if os.path.isdir(f"{pr}/power-profiles.d/{newprof}"):
             for hk in os.listdir(f"{pr}/power-profiles.d/{newprof}"):
                 os.system(f"{pr}/power-profiles.d/{newprof}/{hk}")
-    # Resend the message -- certain ops such as disabling/enabling a CPU
-    # can prevent the default driver from working properly, so we need
-    # to ensure the profile switch both before and after our hook.
-    debounce = True
-    os.system(f"powerprofilesctl set {newprof}")
-    if not locked:
-        oldprof = newprof
 
 
 def callback(bus, msg):
