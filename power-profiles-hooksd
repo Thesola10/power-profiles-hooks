@@ -18,6 +18,26 @@ PREFIXES = ['/etc','/usr/local/etc']
 iface: dbus.Interface
 bus: dbus.Bus
 
+def handle_lock(msg):
+    global locked
+    locks = msg.get_args_list()[1]
+    maxprof = "performance"
+    if "ActiveProfileHolds" in locks.keys():
+        # No remaining hooks.
+        if len(locks["ActiveProfileHolds"]) == 0:
+            locked = False
+            return
+        # After some testing, I found that power-saver locks always win
+        # over performance locks, regardless of order or concurrency.
+        for lk in locks["ActiveProfileHolds"]:
+            if lk["Profile"] == "power-saver":
+                maxprof = "power-saver"
+
+        for pr in PREFIXES:
+            if os.path.isdir(f"{pr}/power-profiles.d/{maxprof}"):
+                for hk in os.listdir(f"{pr}/power-profiles.d/{maxprof}"):
+                    os.system(f"{pr}/power-profiles.d/{maxprof}/{hk}")
+
 
 def handle_change(msg):
     newprof = msg.get_args_list()[2]
